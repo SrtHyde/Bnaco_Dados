@@ -1,22 +1,89 @@
-from requests import get
-from pandas import DataFrame, to_numeric, read_csv, concat, to_datetime, Series, read_excel
+from pandas import DataFrame, read_csv, Series, read_excel
 from unidecode import unidecode
-from bs4 import BeautifulSoup
-from os import path, system, remove, makedirs
 from glob import glob
-from re import sub, search
-
+from re import sub
+from config.config import Config
 
 class Transform:
-    def __init__(self, data_dir_ibge, data_dir_prouni):
+    def __init__(self):
         """Inicializa a classe com os diretórios de dados do IBGE e Prouni."""
-        self.data_dir_ibge = data_dir_ibge
-        self.data_dir_prouni = data_dir_prouni
+        self.config = Config()
+        self.data_dir_ibge = self.config.vars.data_dir_ibge
+        self.data_dir_prouni = self.config.vars.data_dir_prouni
         self.prouni_data = None  # Inicializa a variável que armazenará os dados do Prouni
         self.table_ibge = None   # Inicializa a variável que armazenará os dados do IBGE
 
-    def ibge(self, data):
-        """Transforma os dados do IBGE."""
+    def check_files(self):
+
+        files_prouni  = glob(f"{self.data_dir_prouni}*/*.csv")
+        files_ibge = glob(f"{self.data_dir_ibge}*/*.xls")
+        
+        if len(files_ibge) == 0  :
+                raise FileNotFoundError(f"Not found files to IBGE")
+        if len(files_prouni) == 0  :
+                raise FileNotFoundError(f"Not found files to PROUNI")
+        
+        file_ibge = files_ibge[0]
+
+        return files_prouni, file_ibge
+    
+    def __clean_prouni(self, data):
+        """Limpa os dados do Prouni"""
+        data.columns = [sub(r'[^\w_]', '', coluna).replace('ï', '') for coluna in data.columns]
+        data = data.sort_index(axis=1)
+        data = data.dropna(subset=['ANO_CONCESSAO_BOLSA'])
+
+        if 'CAMPUS' not in data.columns:
+            data['campus'] = Series(['Sem informação'] * len(data))
+            data['municipio_ies'] = Series(['Sem informação'] * len(data))
+
+        map_columns = {
+            'ANO_CONCESSAO_BOLSA': 'ANO',
+            'DT_NASCIMENTO_BENEFICIARIO': 'DATA_NASCIMENTO',
+            'SIGLA_UF_BENEFICIARIO_BOLSA': 'UF',
+            'CPF_BENEFICIARIO_BOLSA': 'CPF',
+            'RACA_BENEFICIARIO_BOLSA': 'RACA',
+            'REGIAO_BENEFICIARIO_BOLSA': 'REGIAO',
+            'SEXO_BENEFICIARIO_BOLSA': 'SEXO',
+            'MUNICIPIO_BENEFICIARIO_BOLSA': 'MUNICIPIO_BENEFICIARIO',
+            'MODALIDADE_ENSINO_BOLSA': 'MODALIDADE_ENSINO',
+            'NOME_TURNO_CURSO_BOLSA': 'TURNO',
+            'NOME_CURSO_BOLSA': 'CURSO',
+            'BENEFICIARIO_DEFICIENTE_FISICO': 'DEFICIENTE_FISICO',
+            'CPF_BENEFICIARIO': 'CPF',
+            'UF_BENEFICIARIO': 'UF_BENEFICIARIO',
+            'RACA_BENEFICIARIO': 'RACA',
+            'REGIAO_BENEFICIARIO': 'REGIAO',
+            'SEXO_BENEFICIARIO': 'SEXO',
+            'MUNICIPIO': 'MUNICIPIO_IES',
+            'CODIGO_EMEC_IES_BOLSA': 'COD_EMEC',
+            'NOME_IES_BOLSA': 'NOME_IES'
+        }
+
+        map_regions = {
+            "Norte": 1,
+            "Nordeste": 2,
+            "Sudeste": 3,
+            "Sul": 4,
+            "Centro-Oeste": 5
+        }
+
+        data = data.rename(columns=map_columns)
+        data.columns = [sub(r'[^\w_]', '', coluna).replace(' ', '_').lower() for coluna in data.columns]
+
+        data = data.apply(lambda x: x.str.title() if x.dtype == 'object' else x).assign(
+            ano=lambda x: x.ano.astype(int),
+            tipo_bolsa=lambda x: x.tipo_bolsa.replace({'Bolsa Parcial 50%': 'Parcial', 'Bolsa Integral': 'Integral', 'Bolsa Parcial 25%': 'Parcial'}),
+            modalidade_ensino=lambda x: x.modalidade_ensino.replace({'Educação A Distância': 'EAD'}),
+            sexo=lambda x: x.sexo.replace({'Feminino': 'F', 'Masculino': 'M'}),
+            deficiente_fisico=lambda x: x.deficiente_fisico.replace({'S': 'Sim', 'N': 'Não', 'M': 'Não'}),
+            raca=lambda x: x.raca.replace({'Ind¡gena': 'Indígena', 'Ind¡Gena': 'Indígena'}),
+            cod_regiao=lambda x: x.regiao.replace(map_regions),
+        )
+        return data
+
+    def __clean_ibge(self, data):
+        """Limpa os dados do IBGE."""
         map = {
             'UF': 'cod_uf',
             'Nome_UF': 'nome_uf',
@@ -62,56 +129,56 @@ class Transform:
 
     def transform_instituicao(self):
         """Cria a tabela de instituições a partir dos dados do Prouni."""
-        instituicao = self.prouni_data[['CODIGO_EMEC_IES_BOLSA', 'NOME_IES_BOLSA']].drop_duplicates()
+        instituicao = self.prouni_data[['cod_emec', 'nome_ies']].drop_duplicates()
         return instituicao
 
     def transform_campus(self):
         """Cria a tabela de campus mapeando as cidades e regiões do IBGE."""
-        map_campus = self.prouni_data['CAMPUS'].unique()
+        map_campus = self.prouni_data['campus'].unique()
         dict_campus = {key: value + 1 for value, key in enumerate(map_campus)}
-        self.prouni_data['cod_campus'] = self.prouni_data['CAMPUS'].map(dict_campus)
+        self.prouni_data['cod_campus'] = self.prouni_data['campus'].map(dict_campus)
  
         campus = self.prouni_data.merge(self.table_ibge,
-                                        left_on=['MUNICIPIO', 'REGIAO_BENEFICIARIO'],
-                                        right_on=['nome_municipio', 'nome_regiao']
-                                   )[['cod_campus', 'cod_mundv', 'CAMPUS', 'CODIGO_EMEC_IES_BOLSA']]
+                                        left_on=['municipio_ies', 'cod_regiao'],
+                                        right_on=['nome_municipio', 'cod_regiao']
+                                   )[['cod_campus', 'cod_mundv', 'campus', 'cod_emec']]
         
         return campus
 
     def transform_turno(self):
         """Cria a tabela de turnos a partir dos dados do Prouni."""
-        map_turno = self.prouni_data['NOME_TURNO_CURSO_BOLSA'].unique()
+        map_turno = self.prouni_data['turno'].unique()
         dict_turno = {key: value + 1 for value, key in enumerate(map_turno)}
-        self.prouni_data['cod_turno'] = self.prouni_data['NOME_TURNO_CURSO_BOLSA'].map(dict_turno)
+        self.prouni_data['cod_turno'] = self.prouni_data['turno'].map(dict_turno)
         
-        turno = self.prouni_data[['cod_turno', 'NOME_TURNO_CURSO_BOLSA']].drop_duplicates()
+        turno = self.prouni_data[['cod_turno', 'turno']].drop_duplicates()
         return turno
 
     def transform_curso(self):
         """Cria a tabela de cursos a partir dos dados do Prouni."""
-        map_curso = self.prouni_data['NOME_CURSO_BOLSA'].unique()
+        map_curso = self.prouni_data['curso'].unique()
         dict_curso = {key: value + 1 for value, key in enumerate(map_curso)}
-        self.prouni_data['cod_curso'] = self.prouni_data['NOME_CURSO_BOLSA'].map(dict_curso)
+        self.prouni_data['cod_curso'] = self.prouni_data['curso'].map(dict_curso)
         
-        curso = self.prouni_data[['cod_curso', 'NOME_CURSO_BOLSA']].drop_duplicates()
+        curso = self.prouni_data[['cod_curso', 'curso']].drop_duplicates()
         return curso
 
     def transform_modalidade(self):
         """Cria a tabela de modalidades de ensino a partir dos dados do Prouni."""
-        map_modalidade = self.prouni_data['MODALIDADE_ENSINO_BOLSA'].unique()
+        map_modalidade = self.prouni_data['modalidade_ensino'].unique()
         dict_modalidade = {key: value + 1 for value, key in enumerate(map_modalidade)}
-        self.prouni_data['cod_modalidade'] = self.prouni_data['MODALIDADE_ENSINO_BOLSA'].map(dict_modalidade)
+        self.prouni_data['cod_modalidade'] = self.prouni_data['modalidade_ensino'].map(dict_modalidade)
         
-        modalidade = self.prouni_data[['cod_modalidade', 'MODALIDADE_ENSINO_BOLSA']].drop_duplicates()
+        modalidade = self.prouni_data[['cod_modalidade', 'modalidade_ensino']].drop_duplicates()
         return modalidade
 
     def transform_tipo_bolsa(self):
         """Cria a tabela de tipos de bolsas a partir dos dados do Prouni."""
-        map_bolsa = self.prouni_data['TIPO_BOLSA'].unique()
+        map_bolsa = self.prouni_data['tipo_bolsa'].unique()
         dict_bolsa = {key: value + 1 for value, key in enumerate(map_bolsa)}
-        self.prouni_data['cod_tipo_bolsa'] = self.prouni_data['TIPO_BOLSA'].map(dict_bolsa)
+        self.prouni_data['cod_tipo_bolsa'] = self.prouni_data['tipo_bolsa'].map(dict_bolsa)
         
-        bolsa = self.prouni_data[['cod_tipo_bolsa', 'TIPO_BOLSA']].drop_duplicates()
+        bolsa = self.prouni_data[['cod_tipo_bolsa', 'tipo_bolsa']].drop_duplicates()
         return bolsa
 
     def transform_beneficiario(self):
@@ -119,11 +186,11 @@ class Transform:
         self.prouni_data['cod_beneficiario'] = range(1, len(self.prouni_data) + 1)
         
         beneficiario = self.prouni_data.merge(self.table_ibge,
-                                              left_on=['MUNICIPIO', 'UF_BENEFICIARIO'],
+                                              left_on=['municipio_beneficiario', 'uf_beneficiario'],
                                               right_on=['nome_municipio', 'sg_uf']
                                               )[['cod_beneficiario', 'cod_mundv', 'cod_tipo_bolsa', 'cod_curso',
-                                                 'cod_modalidade', 'cod_campus', 'CPF_BENEFICIARIO', 'SEXO_BENEFICIARIO',
-                                                 'RACA_BENEFICIARIO', 'DATA_NASCIMENTO', 'BENEFICIARIO_DEFICIENTE_FISICO']]
+                                                 'cod_modalidade', 'cod_turno','cod_campus', 'cpf', 'sexo',
+                                                 'raca', 'data_nascimento', 'deficiente_fisico']]
         return beneficiario
 
     def transform_uf(self):
@@ -143,17 +210,48 @@ class Transform:
 
     def transform(self):
         """Método principal para transformar todos os dados."""
-        tables = {
-            "regiao": self.transform_regiao(),
-            "uf": self.transform_uf(),
-            "municipio": self.transform_municipio(),
-            "instituicao": self.transform_instituicao(),
-            "campus": self.transform_campus(),
-            "turno": self.transform_turno(),
-            "curso": self.transform_curso(),
-            "modalidade": self.transform_modalidade(),
-            "tipo_bolsa": self.transform_tipo_bolsa(),
-            "beneficiario": self.transform_beneficiario(),
-        }
+        prouni_files, ibge_file = self.check_files()
+        try:
+            print('Lendo Arquivo Ibge ...')
+            data_ibge = read_excel(f'{ibge_file}', skiprows=6, engine='xlrd' )
 
+            if len(data_ibge) == 0:
+                raise FileNotFoundError(f"Not found data to {ibge_file}")
+            
+            self.table_ibge = self.__clean_ibge(data_ibge)
+
+        except Exception as error:
+            raise OSError(error) from error
+        
+        qtd = len(prouni_files)
+        for cont, file in enumerate(prouni_files):
+            try:
+
+                print(f'Processando Prouni {file} - ({cont}/{qtd})...')
+                data_prouni = read_csv(f'{file}', sep=';', encoding='latin1' )
+
+                if len(data_prouni) == 0:
+                    raise FileNotFoundError(f"Not found data to {file}")
+
+                self.prouni_data = self.__clean_prouni(data_prouni)
+
+            except Exception as error:
+                raise OSError(error) from error
+        
+            tables = {
+                "regiao": self.transform_regiao(),
+                "uf": self.transform_uf(),
+                "municipio": self.transform_municipio(),
+                "instituicao": self.transform_instituicao(),
+                "campus": self.transform_campus(),
+                "turno": self.transform_turno(),
+                "curso": self.transform_curso(),
+                "modalidade": self.transform_modalidade(),
+                "tipo_bolsa": self.transform_tipo_bolsa(),
+                "beneficiario": self.transform_beneficiario(),
+            }
+        print(tables)
+        exit()
         return tables
+
+
