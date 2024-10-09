@@ -2,15 +2,20 @@
 from requests import get
 from pandas import DataFrame, to_numeric
 from bs4 import BeautifulSoup
-from os import path, system, remove, makedirs
+from os import path, system, remove, makedirs, getcwd
 from glob import glob
+from config.config import Config
 
 class IbgeExtractor:
   def __init__(self):
-    '''Define instânncia para extrair dados do IBGE'''
-    
-    self.url = None # adicionar self.config
-    self.limit = None # adicionar self.config
+    '''Define instância para extrair dados do IBGE'''
+    self.config = Config()
+    self.url = self.config.vars.ibge_url # adicionar self.config
+    self.limit = self.config.vars.limit # adicionar self.config
+    self.start_year = self.config.vars.start_year
+
+    self.caminho_atual = getcwd()
+    self.data_dir = f'{self.caminho_atual}{self.config.vars.data_dir_ibge}'
 
   def get_links(self):
 
@@ -29,16 +34,15 @@ class IbgeExtractor:
 
     return data
 
-  def download(self,url, data_dir, start_year):
-    self.url = url
+  def download(self):
     urls = self.get_links()
 
-    data = urls.query(f"ano >= {start_year}")
+    data = urls.query(f"ano >= {self.start_year}")
     print(data)
 
-    if not path.exists(data_dir):
+    if not path.exists(self.data_dir):
       print("Criando pasta")
-      makedirs(data_dir)
+      makedirs(self.data_dir)
 
 
     for doc in data.to_dict('records'):
@@ -46,19 +50,25 @@ class IbgeExtractor:
       file = doc["arquivo"]
       urlname = doc["url"]
       year = doc["ano"]
-      destfile = (f'{data_dir}/{file}')
+      destfile = (f'{self.data_dir}\{file}')
+      
+      print(destfile)
 
-      if destfile in glob(f"{data_dir}/*"):
+      if destfile in glob(f"{self.data_dir}\*"):
         print("Arquivo já existe")
         continue
 
       os_cmd = (
-            f"wget --limit-rate {self.limit}k "
-            f"--no-check-certificate -c {urlname} -O {destfile}")
+        f"curl --limit-rate {self.limit}K "
+        f"--insecure -C - {urlname} -o {destfile}"
+        )
       system(os_cmd)
-
       if ".zip" in file.lower():
         print("Uncompress ZIP file")
-        system(f"7z e {destfile} -O{data_dir}")
+        system(f"7z e {destfile} -O{self.data_dir}")
         print("Remove ZIP file")
         remove(destfile)
+        
+
+      else: 
+        print('Arquivo já baixado')
