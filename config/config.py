@@ -4,7 +4,10 @@ from yaml import load, safe_load
 from yaml.loader import SafeLoader
 import mysql.connector
 from mysql.connector import Error
-
+from sqlalchemy.exc import OperationalError
+from sqlalchemy import create_engine, text
+import pymysql
+from os import system
 @dataclasses.dataclass
 class Variables:
     """ Variables dataclass """
@@ -17,6 +20,9 @@ class Variables:
     db_host: str
     db_user: str
     db_password: str
+    start_year: int
+    limit: int
+    title: str
 
 class Config:
     """ Configuration interface """
@@ -35,7 +41,10 @@ class Config:
             data_dir_prouni=env_data.get("data_dir_prouni"),
             db_host=secrets_data.get("db_host"),
             db_user=secrets_data.get("db_user"),
-            db_password=secrets_data.get("db_password")
+            db_password=secrets_data.get("db_password"),
+            start_year=env_data.get("start_year"),
+            limit=env_data.get('limit'),
+            title=env_data.get('title')
         )
 
     def _load_yaml(self, filename):
@@ -49,42 +58,28 @@ class Config:
         Se o banco de dados não existir, ele será criado.
         """
 
+        connection_string = f"mysql+pymysql://{self.vars.db_user}:{self.vars.db_password}@{self.vars.db_host}"
+        engine = create_engine(connection_string)
+
+        # Tente criar o banco de dados se não existir
+        try:
+            with engine.connect() as conn:
+                conn.execute(text(f"CREATE DATABASE IF NOT EXISTS {self.vars.database}"))
+                print(f"Banco de dados '{self.vars.database}' criado ou já existe.")
+        except OperationalError as e:
+            print(f"Erro ao criar o banco de dados: {e}")
+            return None
+
+        # Agora, conecte-se ao banco de dados específico
+        connection_string_with_db = f"mysql+pymysql://{self.vars.db_user}:{self.vars.db_password}@{self.vars.db_host}"
+        engine_with_db = create_engine(connection_string_with_db)
 
         try:
-            import mysql.connector
-            from mysql.connector import Error
-
-            # Primeiro, conecte-se ao MySQL sem especificar um banco de dados
-            connection = mysql.connector.connect(
-                host=self.vars.db_host,
-                user=self.vars.db_user,
-                password=self.vars.db_password
-            )
-
-            if connection.is_connected():
-                cursor = connection.cursor()
-                
-                # Tente criar o banco de dados se ele não existir
-                cursor.execute(f"CREATE DATABASE IF NOT EXISTS {self.vars.database}")
-                
-                # Feche a conexão inicial
-                cursor.close()
-                connection.close()
-
-                # Agora, conecte-se ao banco de dados específico
-                connection = mysql.connector.connect(
-                    host=self.vars.db_host,
-                    user=self.vars.db_user,
-                    password=self.vars.db_password,
-                    database=self.vars.database
-                )
-
-                if connection.is_connected():
-                    print(f"Conectado com sucesso ao banco de dados {self.vars.database}")
-                    return connection
-
-        except Error as e:
-            print(f"Erro ao conectar ao MySQL: {e}")
+            with engine_with_db.connect() as conn:
+                print(f"Conectado com sucesso ao banco de dados '{self.vars.database}'")
+                return conn  # Retorna a conexão para uso posterior
+        except OperationalError as e:
+            print(f"Erro ao conectar ao banco de dados '{self.vars.database}': {e}")
             return None
-        
 
+       
