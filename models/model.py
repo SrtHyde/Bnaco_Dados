@@ -1,90 +1,109 @@
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, Date, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 
 Base = declarative_base()
 
-class Instituicao(Base):
-    __tablename__ = 'instituicao'
+class Model:
+    class Instituicao(Base):
+        __tablename__ = 'instituicao'
 
-    codigo_emec_ies_bolsa = Column(Integer, primary_key=True)
-    nome_ies_bolsa = Column(String, nullable=False)
-    
-    campus = relationship("Model.Campus", back_populates="instituicao")
+        cod_emec = Column(Integer, primary_key=True, autoincrement=True)
+        nome_ies = Column(String, nullable=False)
 
-class Campus(Base):
-    __tablename__ = 'campus'
+        campus = relationship("Model.Campus", back_populates="instituicao")
 
-    cod_campus = Column(Integer, primary_key=True)
-    cod_mundv = Column(Integer, ForeignKey('municipio.cod_mundv'))
-    campus_nome = Column(String, nullable=False)
-    codigo_emec_ies_bolsa = Column(Integer, ForeignKey('instituicao.codigo_emec_ies_bolsa'))
+    class Campus(Base):
+        __tablename__ = 'campus'
 
-    instituicao = relationship("Model.Instituicao", back_populates="campus")
-    municipio = relationship("Model.Municipio", back_populates="campus")
+        cod_campus = Column(Integer, primary_key=True, autoincrement=True)
+        cod_mundv = Column(Integer, ForeignKey('municipio.cod_mundv'))
+        cod_emec = Column(Integer, ForeignKey('instituicao.cod_emec'))
+        campus_nome = Column(String, nullable=False)
 
-class Turno(Base):
-    __tablename__ = 'turno'
+        instituicao = relationship("Model.Instituicao", back_populates="campus")
+        municipio = relationship("Model.Municipio", back_populates="campus")
+        beneficiario = relationship("Model.Beneficiario", back_populates="campus")
 
-    cod_turno = Column(Integer, primary_key=True)
-    nome_turno = Column(String, nullable=False)
+    class Turno(Base):
+        __tablename__ = 'turno'
 
-class Curso(Base):
-    __tablename__ = 'curso'
+        cod_turno = Column(Integer, primary_key=True, autoincrement=True)
+        nome_turno = Column(String, nullable=False)
 
-    cod_curso = Column(Integer, primary_key=True)
-    nome_curso = Column(String, nullable=False)
+        beneficiario = relationship("Model.Beneficiario", back_populates="turno")
 
-class Modalidade(Base):
-    __tablename__ = 'modalidade'
+    class Curso(Base):
+        __tablename__ = 'curso'
 
-    cod_modalidade = Column(Integer, primary_key=True)
-    nome_modalidade = Column(String, nullable=False)
+        cod_curso = Column(Integer, primary_key=True, autoincrement=True)
+        nome_curso = Column(String, nullable=False)
 
-class Bolsa(Base):
-    __tablename__ = 'bolsa'
+        beneficiario = relationship("Model.Beneficiario", back_populates="curso")
 
-    cod_tipo_bolsa = Column(Integer, primary_key=True)
-    nome_tipo_bolsa = Column(String, nullable=False)
+    class Modalidade(Base):
+        __tablename__ = 'modalidade'
 
-    beneficiario = relationship("Model.Beneficiario", back_populates="bolsa")
+        cod_modalidade = Column(Integer, primary_key=True, autoincrement=True)
+        nome_modalidade = Column(String, nullable=False)
 
-class Beneficiario(Base):
-    __tablename__ = 'beneficiario'
+        beneficiario = relationship("Model.Beneficiario", back_populates="modalidade")
 
-    cod_beneficiario = Column(Integer, primary_key=True)
-    cod_mundv = Column(Integer, ForeignKey('municipio.cod_mundv'))
-    cod_tipo_bolsa = Column(Integer, ForeignKey('bolsa.cod_tipo_bolsa'))
-    cod_curso = Column(Integer, ForeignKey('curso.cod_curso'))
-    cod_modalidade = Column(Integer, ForeignKey('modalidade.cod_modalidade'))
-    cod_campus = Column(Integer, ForeignKey('campus.cod_campus'))
-    cpf = Column(String, nullable=False)
-    sexo = Column(String)
-    raca = Column(String)
-    data_nascimento = Column(String)
-    beneficiario_deficiente_fisico = Column(String)
+    class Bolsa(Base):
+        __tablename__ = 'bolsa'
 
-    bolsa = relationship("Model.Bolsa", back_populates="beneficiario")
-    curso = relationship("Model.Curso", back_populates="beneficiario")
-    campus = relationship("Model.Campus", back_populates="beneficiario")
-    modalidade = relationship("Model.Modalidade", back_populates="beneficiario")
+        cod_tipo_bolsa = Column(Integer, primary_key=True, autoincrement=True)
+        nome_tipo_bolsa = Column(String, nullable=False)
 
-class UF(Base):
-    __tablename__ = 'uf'
+        beneficiario = relationship("Model.Beneficiario", back_populates="bolsa")
 
-    cod_uf = Column(Integer, primary_key=True)
-    sigla = Column(String, nullable=False)
+    class Beneficiario(Base):
+        __tablename__ = 'beneficiario'
 
-class Regiao(Base):
-    __tablename__ = 'regiao'
+        cod_beneficiario = Column(Integer, primary_key=True, autoincrement=True)
+        cod_mundv = Column(Integer, ForeignKey('municipio.cod_mundv'))
+        cod_tipo_bolsa = Column(Integer, ForeignKey('bolsa.cod_tipo_bolsa'))
+        cod_curso = Column(Integer, ForeignKey('curso.cod_curso'))
+        cod_modalidade = Column(Integer, ForeignKey('modalidade.cod_modalidade'))
+        cod_campus = Column(Integer, ForeignKey('campus.cod_campus'))
+        cod_turno = Column(Integer, ForeignKey('turno.cod_turno'))
 
-    cod_regiao = Column(Integer, primary_key=True)
-    nome_regiao = Column(String, nullable=False)
+        cpf = Column(String, nullable=False)
+        sexo = Column(String)
+        raca = Column(String)
+        data_nascimento = Column(Date)
+        deficiente_fisico = Column(String)
 
-class Municipio(Base):
-    __tablename__ = 'municipio'
+        bolsa = relationship("Model.Bolsa", back_populates="beneficiario")
+        curso = relationship("Model.Curso", back_populates="beneficiario")
+        campus = relationship("Model.Campus", back_populates="beneficiario")
+        modalidade = relationship("Model.Modalidade", back_populates="beneficiario")
+        turno = relationship("Model.Turno", back_populates="beneficiario")
 
-    cod_mundv = Column(Integer, primary_key=True)
-    nome_municipio = Column(String, nullable=False)
+    class UF(Base):
+        __tablename__ = 'uf'
 
-    campus = relationship("Model.Campus", back_populates="municipio")
+        cod_uf = Column(Integer, primary_key=True, autoincrement=True)
+        sigla = Column(String, nullable=False)
+        cod_regiao = Column(Integer, ForeignKey('regiao.cod_regiao'))
+
+        regiao = relationship("Model.Regiao", back_populates="ufs")
+        municipios = relationship("Model.Municipio", back_populates="uf")
+
+    class Regiao(Base):
+        __tablename__ = 'regiao'
+
+        cod_regiao = Column(Integer, primary_key=True, autoincrement=True)
+        nome_regiao = Column(String, nullable=False)
+
+        ufs = relationship("Model.UF", back_populates="regiao")
+
+    class Municipio(Base):
+        __tablename__ = 'municipio'
+
+        cod_mundv = Column(Integer, primary_key=True, autoincrement=True)
+        nome_municipio = Column(String, nullable=False)
+        cod_uf = Column(Integer, ForeignKey('uf.cod_uf'))
+
+        uf = relationship("Model.UF", back_populates="municipios")
+        campus = relationship("Model.Campus", back_populates="municipio")
