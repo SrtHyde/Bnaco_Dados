@@ -250,6 +250,8 @@ class Transform:
                 "tipo_bolsa": self.transform_tipo_bolsa(),
                 "beneficiario": self.transform_beneficiario(),
             }
+
+        beneficiario = tables['beneficiario']
         print(tables)
         exit()
         return tables

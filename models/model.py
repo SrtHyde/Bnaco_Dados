@@ -31,13 +31,16 @@ class Model:
         cod_turno = Column(Integer, primary_key=True, autoincrement=True)
         nome_turno = Column(String, nullable=False)
 
-        beneficiario = relationship("Model.Beneficiario", back_populates="turno")
+        curso = relationship("Model.Curso", back_populates="turno")
 
     class Curso(Base):
         __tablename__ = 'curso'
 
         cod_curso = Column(Integer, primary_key=True, autoincrement=True)
         nome_curso = Column(String, nullable=False)
+        
+        cod_modalidade = Column(Integer, ForeignKey('modalidade.cod_modalidade'))
+        cod_turno = Column(Integer, ForeignKey('turno.cod_turno'))
 
         beneficiario = relationship("Model.Beneficiario", back_populates="curso")
 
@@ -47,7 +50,7 @@ class Model:
         cod_modalidade = Column(Integer, primary_key=True, autoincrement=True)
         nome_modalidade = Column(String, nullable=False)
 
-        beneficiario = relationship("Model.Beneficiario", back_populates="modalidade")
+        curso = relationship("Model.Beneficiario", back_populates="modalidade")
 
     class Bolsa(Base):
         __tablename__ = 'bolsa'
@@ -64,9 +67,9 @@ class Model:
         cod_mundv = Column(Integer, ForeignKey('municipio.cod_mundv'))
         cod_tipo_bolsa = Column(Integer, ForeignKey('bolsa.cod_tipo_bolsa'))
         cod_curso = Column(Integer, ForeignKey('curso.cod_curso'))
-        cod_modalidade = Column(Integer, ForeignKey('modalidade.cod_modalidade'))
+        
         cod_campus = Column(Integer, ForeignKey('campus.cod_campus'))
-        cod_turno = Column(Integer, ForeignKey('turno.cod_turno'))
+        
 
         cpf = Column(String, nullable=False)
         sexo = Column(String)
