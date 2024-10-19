@@ -1,13 +1,13 @@
 import dataclasses
 from os.path import join, dirname, abspath
-from yaml import load, safe_load
+from yaml import load
 from yaml.loader import SafeLoader
-import mysql.connector
-from mysql.connector import Error
 from sqlalchemy.exc import OperationalError
 from sqlalchemy import create_engine, text
-import pymysql
-from os import system
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.ext.automap import automap_base
+
 @dataclasses.dataclass
 class Variables:
     """ Variables dataclass """
@@ -47,39 +47,55 @@ class Config:
             title=env_data.get('title')
         )
 
+        connection_string = f"mysql+pymysql://{self.vars.db_user}:{self.vars.db_password}@{self.vars.db_host}"
+        engine = create_engine(connection_string)
+        session = sessionmaker(bind=engine)()
+        dbname = self.vars.database
+        engine_url = str(engine.url)
+
+                
+        if engine_url.find(dbname) == -1:
+            session, engine = self.create_db_connection( engine, session, connection_string)
+
+        self.db_conn_mysql = session
+        self.engine_conn_mysql = engine
+
     def _load_yaml(self, filename):
         """Load YAML file"""
         with open(join(dirname(abspath(__file__)), filename), encoding='utf-8') as file:
             return load(file, Loader=SafeLoader)
 
-    def create_db_connection(self):
-        """
-        Cria uma conexão com o banco de dados MySQL.
+    def create_db_connection(self, engine, session, connection_string):
+        """    
         Se o banco de dados não existir, ele será criado.
         """
 
-        connection_string = f"mysql+pymysql://{self.vars.db_user}:{self.vars.db_password}@{self.vars.db_host}"
-        engine = create_engine(connection_string)
-
-        # Tente criar o banco de dados se não existir
+        # Tena criar o banco de dados se não existir
         try:
             with engine.connect() as conn:
                 conn.execute(text(f"CREATE DATABASE IF NOT EXISTS {self.vars.database}"))
-                print(f"Banco de dados '{self.vars.database}' criado ou já existe.")
         except OperationalError as e:
             print(f"Erro ao criar o banco de dados: {e}")
             return None
 
-        # Agora, conecte-se ao banco de dados específico
-        connection_string_with_db = f"mysql+pymysql://{self.vars.db_user}:{self.vars.db_password}@{self.vars.db_host}"
-        engine_with_db = create_engine(connection_string_with_db)
+        # Agora, conecta-se ao banco de dados específico
+        connection_string_with_db = f"{connection_string}/{self.vars.database}"
+        engine = create_engine(connection_string_with_db)
+        session = sessionmaker(bind=engine)()
 
         try:
-            with engine_with_db.connect() as conn:
-                print(f"Conectado com sucesso ao banco de dados '{self.vars.database}'")
-                return conn  # Retorna a conexão para uso posterior
+            # Configurar o automap
+            automap = automap_base()
+            automap.prepare(engine, reflect=True)
+            self.automap = automap
+
+            # Armazenar conexões
+            self.db_conn_mysql = session
+            self.engine_conn_mysql = engine
+
+            print(f"Conectado com sucesso ao banco de dados '{self.vars.database}'")
+            return session, engine
         except OperationalError as e:
             print(f"Erro ao conectar ao banco de dados '{self.vars.database}': {e}")
             return None
-
-       
+        
