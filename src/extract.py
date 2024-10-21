@@ -5,9 +5,7 @@ from pandas import DataFrame, to_numeric, concat
 from bs4 import BeautifulSoup
 from os import path, makedirs, getcwd, remove
 from glob import glob
-import sys
 import zipfile
-import io
 from config.config import Config
 from models.model import Model
 import datetime
