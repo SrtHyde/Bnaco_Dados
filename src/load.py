@@ -11,7 +11,7 @@ class Load:
     def load_data(self, tables):
         cont=1
         for table_name, df in tables.items():
-            print(f"Processando tabela {table_name}, {cont}/{len(tables)}")
+            print(f"\nProcessando tabela {table_name}, {cont}/{len(tables)}")
             model_class = getattr(Model, table_name.capitalize())
             rows_added = 0
             rows_skipped = 0
@@ -40,6 +40,9 @@ class Load:
             "campus", "turno", "modalidade", "bolsa", "curso",  
             "aluno"]
         
+        
         ordered_tables = {table: tables[table] for table in table_order if table in tables}
+
+
 
         self.load_data(ordered_tables)

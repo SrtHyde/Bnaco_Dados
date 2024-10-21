@@ -11,24 +11,33 @@ from config.config import Config
 
 class Transform:
     def __init__(self):
+        self.config = Config()
+        self.dict_source = self.config.vars.source
+        self.project_root = os.path.abspath(os.path.join(os.getcwd()))
         self.prouni_data = None
         self.ibge_data = None
         self.merged_data = None
 
-    def check_files(self, dir_prouni, dir_ibge, ) -> Tuple[List[str], str]:
+    def check_files(self) -> Tuple[List[str], str]:
+        for source in self.dict_source.keys():
+            dict_source = self.dict_source[source]
+            data_dir = f"{self.project_root}{dict_source['data_dir']}"
+            type_file = dict_source['type']
 
-        files_prouni = glob(f"{dir_prouni}*/*.csv")
-        files_ibge = glob(f"{dir_ibge}*/*.xls")
-        
-        print(dir_ibge)
-        print(glob(f"{dir_ibge}*/*.xls"))
+            files_dir = glob(os.path.join(data_dir, type_file))
 
-        if not files_ibge:
+            if source == 'ibge':
+                files_ibge = files_dir
+            if source == 'prouni':
+                files_prouni = files_dir
+     
+
+        if  len(files_ibge) == 0:
             raise FileNotFoundError("Arquivos não encontrados para IBGE")
-        if not files_prouni:
+        if len(files_prouni) == 0:
             raise FileNotFoundError("Arquivos não encontrados para PROUNI")
         
-        return files_prouni, files_ibge[0]
+        return files_prouni, files_ibge[1]
     
     def clean_prouni(self, data: DataFrame) -> DataFrame:
         data.columns = [sub(r'[^\w_]', '', coluna).replace('ï', '') for coluna in data.columns]
@@ -184,7 +193,7 @@ class Transform:
                                                                                 'BELA VISTA DO CAROBA': 'BELA VISTA DA CAROBA',
                                                                                 'SANTA TERESINHA': 'SANTA TEREZINHA'})
 
-        print(data)
+
 
         data['municipio_aluno'] = data['municipio_aluno'].str.replace('-', ' ')
         return data
@@ -224,27 +233,30 @@ class Transform:
             unique_values = data[column].unique()
             return {key: value + 1 for value, key in enumerate(unique_values)}
 
-        code_columns = ['campus', 'turno', 'nome_curso', 'modalidade', 'tipo_bolsa']
+        code_columns = ['turno', 'nome_curso', 'modalidade', 'tipo_bolsa']
         
         for column in code_columns:
             code_map = create_code_map(column)
             new_column = f'cod_{column.replace("_ensino", "").replace("nome_", "")}'
             data[new_column] = data[column].map(code_map)
 
+        data['cod_ies'] = data.groupby(['cod_emec', 'nome_ies']).ngroup() + 1
+        data['cod_curso'] = data.groupby(['nome_curso', 'cod_ies', 'cod_turno', 'cod_modalidade']).ngroup() + 1
+        data['cod_campus'] = data.groupby(['cod_ies', 'campus', 'cod_mundv_campus']).ngroup() + 1
         data['cod_aluno'] = range(1, len(data) + 1)
-      
+
         return data
 
-    def transform_data(self, data: DataFrame, columns: List[str]) -> DataFrame:
-        return data[columns].drop_duplicates()
+    
 
-    def transform(self, data_dir_prouni, data_dir_ibge) -> Dict[str, DataFrame]:
+    def transform(self) -> Dict[str, DataFrame]:
 
-        prouni_files, ibge_file = self.check_files(data_dir_prouni, data_dir_ibge)
+        prouni_files, ibge_file = self.check_files()
         
         try:
-            print('Lendo Arquivo IBGE ...')
+            print(f'\n Processando {ibge_file} ...')
             data_ibge = read_excel(ibge_file, skiprows=6, engine='xlrd')
+            print('Processado\n')
             if data_ibge.empty:
                 raise FileNotFoundError(f"Dados não encontrados no arquivo: {ibge_file}")
             self.ibge_data = self.clean_ibge(data_ibge)
@@ -255,9 +267,8 @@ class Transform:
         for file in prouni_files:
             try:
 
-                print(f'Processando Prouni {file}...')
-                data_prouni = read_csv(file, sep=';', encoding='latin1'
-                                       )
+                print(f'Processando {file}...')
+                data_prouni = read_csv(file, sep=';', encoding='iso-8859-1')
                 if data_prouni.empty:
                     print(f"Dados não encontrados no arquivo: {file}")
                     continue
@@ -302,24 +313,36 @@ class Transform:
 
         self.merged_data = self.generate_codes(self.merged_data)
 
-
-        tables = {
-            "regiao": self.transform_data(self.ibge_data, ['cod_regiao', 'nome_regiao']),
-            "uf": self.transform_data(self.ibge_data, ['cod_uf', 'sg_uf', 'cod_regiao']),
-            "municipio": self.transform_data(self.ibge_data, ['cod_mundv', 'nome_municipio', 'cod_uf']),
-            "instituicao": self.transform_data(self.merged_data, ['cod_emec', 'nome_ies']),
-            "campus": self.transform_data(self.merged_data, ['cod_campus', 'cod_mundv_campus', 'campus', 'cod_emec']),
-            "turno": self.transform_data(self.merged_data, ['cod_turno', 'turno']),
-            "curso": self.transform_data(self.merged_data, ['cod_curso', 'nome_curso', 'cod_turno', 'cod_modalidade', 'cod_emec']),
-            "modalidade": self.transform_data(self.merged_data, ['cod_modalidade', 'modalidade']),
-            "bolsa": self.transform_data(self.merged_data, ['cod_tipo_bolsa', 'tipo_bolsa']),
-            "aluno": self.transform_data(self.merged_data, ['cod_aluno', 'cod_mundv_aluno', 'cod_tipo_bolsa', 'cod_curso',
+        regiao=  self.ibge_data[['cod_regiao', 'nome_regiao']].drop_duplicates()
+        uf  = self.ibge_data[['cod_uf', 'sg_uf', 'cod_regiao']].drop_duplicates()
+        municipio= self.ibge_data[['cod_mundv', 'nome_municipio', 'cod_uf']].drop_duplicates()
+        instituicao= self.merged_data[['cod_ies','cod_emec', 'nome_ies']].drop_duplicates()
+        campus= self.merged_data[['cod_campus', 'cod_mundv_campus', 'campus', 'cod_ies']].drop_duplicates()
+        turno= self.merged_data[['cod_turno', 'turno']].drop_duplicates()
+        curso =self.merged_data[['cod_curso', 'nome_curso', 'cod_turno', 'cod_modalidade', 'cod_ies']].drop_duplicates()
+        modalidade = self.merged_data[['cod_modalidade', 'modalidade']].drop_duplicates()
+        bolsa = self.merged_data[['cod_tipo_bolsa', 'tipo_bolsa']].drop_duplicates()
+        aluno = self.merged_data[['cod_aluno', 'cod_mundv_aluno', 'cod_tipo_bolsa', 'cod_curso',
                                                             'cod_campus', 'cpf', 'sexo', 'raca', 'data_nascimento', 
-                                                            'deficiente_fisico']),
+                                                            'deficiente_fisico']].drop_duplicates()
+        
+        tables = {
+            "regiao": regiao,
+            "uf": uf,
+            "municipio":municipio,
+            "instituicao": instituicao,
+            "campus": campus,
+            "turno": turno,
+            "curso": curso,
+            "modalidade": modalidade,
+            "bolsa": bolsa,
+            "aluno": aluno,
         }
         
         return tables
 
-    def execute(self, data_dir_prouni, data_dir_ibge) -> Dict[str, DataFrame]:
-        self.tables = self.transform(data_dir_prouni, data_dir_ibge)
+    def execute(self) -> Dict[str, DataFrame]:
+
+        self.tables = self.transform()
+
         return self.tables
