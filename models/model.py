@@ -13,20 +13,20 @@ class Model:
     class DownloadRegistry(Base):
         __tablename__ = 'download_registry'
         id = Column(Integer, primary_key=True)
-        file_name = Column(String(75))
+        file_name = Column(String(200))
         download_date = Column(DateTime)
-        status = Column(String(75))
+        status = Column(String(200))
 
     class Regiao(Base):
         __tablename__ = 'regiao'
         cod_regiao = Column(Integer, primary_key=True, autoincrement=True)
-        nome_regiao = Column(String(75), nullable=False)
+        nome_regiao = Column(String(200), nullable=False)
         uf = relationship("Uf", back_populates="regiao")
 
     class Uf(Base):
         __tablename__ = 'uf'
         cod_uf = Column(Integer, primary_key=True, autoincrement=True)
-        sg_uf = Column(String(75), nullable=False)
+        sg_uf = Column(String(200), nullable=False)
 
         #Chave estrangeira
         cod_regiao = Column(Integer, ForeignKey('regiao.cod_regiao'))
@@ -38,7 +38,7 @@ class Model:
     class Municipio(Base):
         __tablename__ = 'municipio'
         cod_mundv = Column(Integer, primary_key=True, autoincrement=True)
-        nome_municipio = Column(String(75), nullable=False)
+        nome_municipio = Column(String(200), nullable=False)
         #Chave estrangeira
         cod_uf = Column(Integer, ForeignKey('uf.cod_uf'))
 
@@ -47,8 +47,9 @@ class Model:
         campus = relationship("Campus", back_populates="municipio")
     class Instituicao(Base):
         __tablename__ = 'instituicao'
-        cod_emec = Column(Integer, primary_key=True, autoincrement=True)
-        nome_ies = Column(String(75), nullable=False)
+        cod_ies = Column(Integer, primary_key=True, autoincrement=True)
+        cod_emec = Column(Integer, nullable=False)
+        nome_ies = Column(String(200), nullable=False)
 
         # Relacionamentos
         campus = relationship("Campus", back_populates="instituicao")
@@ -59,9 +60,9 @@ class Model:
         cod_mundv_campus = Column(Integer, ForeignKey('municipio.cod_mundv'))
 
         # Chave estrangeira
-        cod_emec = Column(Integer, ForeignKey('instituicao.cod_emec'))
+        cod_ies = Column(Integer, ForeignKey('instituicao.cod_ies'))
 
-        campus= Column(String(75), nullable=False)
+        campus= Column(String(200), nullable=False)
 
         # Relacionamentos
         instituicao = relationship("Instituicao", back_populates="campus")
@@ -70,7 +71,7 @@ class Model:
     class Turno(Base):
         __tablename__ = 'turno'
         cod_turno = Column(Integer, primary_key=True, autoincrement=True)
-        turno = Column(String(75), nullable=False)
+        turno = Column(String(200), nullable=False)
 
         # Relacionamento
         curso = relationship("Curso", back_populates="turno")
@@ -78,17 +79,17 @@ class Model:
     class Modalidade(Base):
         __tablename__ = 'modalidade'
         cod_modalidade = Column(Integer, primary_key=True, autoincrement=True)
-        modalidade = Column(String(75), nullable=False)
+        modalidade = Column(String(200), nullable=False)
 
         curso = relationship("Curso", back_populates="modalidade")
 
     class Curso(Base):
         __tablename__ = 'curso'
         cod_curso = Column(Integer, primary_key=True, autoincrement=True)
-        nome_curso = Column(String(75), nullable=False)
+        nome_curso = Column(String(200), nullable=False)
 
         #Chaves Estrangeiras
-        cod_emec = Column(Integer, ForeignKey('instituicao.cod_emec'))
+        cod_ies = Column(Integer, ForeignKey('instituicao.cod_ies'))
         cod_modalidade = Column(Integer, ForeignKey('modalidade.cod_modalidade'))
         cod_turno = Column(Integer, ForeignKey('turno.cod_turno'))
 
@@ -100,7 +101,7 @@ class Model:
     class Bolsa(Base):
         __tablename__ = 'bolsa'
         cod_tipo_bolsa = Column(Integer, primary_key=True, autoincrement=True)
-        tipo_bolsa = Column(String(75), nullable=False)
+        tipo_bolsa = Column(String(200), nullable=False)
 
         # Relacionamento
         aluno = relationship("Aluno", back_populates="bolsa")
@@ -112,11 +113,11 @@ class Model:
         cod_curso = Column(Integer, ForeignKey('curso.cod_curso'))
         cod_campus = Column(Integer, ForeignKey('campus.cod_campus'))
         
-        cpf = Column(String(75), nullable=False)
-        sexo = Column(String(75))
-        raca = Column(String(75))
+        cpf = Column(String(200), nullable=False)
+        sexo = Column(String(200))
+        raca = Column(String(200))
         data_nascimento = Column(Date)
-        deficiente_fisico = Column(String(75))
+        deficiente_fisico = Column(String(200))
 
 
         bolsa = relationship("Bolsa", back_populates="aluno")

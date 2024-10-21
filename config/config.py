@@ -1,5 +1,5 @@
 import dataclasses
-from os.path import join, dirname, abspath
+import os
 from yaml import load
 from yaml.loader import SafeLoader
 from sqlalchemy.exc import OperationalError
@@ -11,18 +11,13 @@ from sqlalchemy.ext.automap import automap_base
 @dataclasses.dataclass
 class Variables:
     """ Variables dataclass """
-    ibge_url: str
-    prouni_url: str
-    files_dir: str
-    data_dir_ibge: str
-    data_dir_prouni: dict
+    source: dict
     database: str
     db_host: str
     db_user: str
     db_password: str
     start_year: int
     limit: int
-    title: str
 
 class Config:
     """ Configuration interface """
@@ -33,18 +28,13 @@ class Config:
         secrets_data = self._load_yaml('secrets.yaml')
         
         self.vars = Variables(
-            ibge_url=env_data.get("url_ibge"),
-            prouni_url=env_data.get("url_prouni"),
             database=env_data.get("database"),
-            files_dir=env_data.get("resultados_dir"),
-            data_dir_ibge=env_data.get("data_dir_ibge"),
-            data_dir_prouni=env_data.get("data_dir_prouni"),
+            source=env_data.get("source"),  
             db_host=secrets_data.get("db_host"),
             db_user=secrets_data.get("db_user"),
             db_password=secrets_data.get("db_password"),
             start_year=env_data.get("start_year"),
             limit=env_data.get('limit'),
-            title=env_data.get('title')
         )
 
         connection_string = f"mysql+pymysql://{self.vars.db_user}:{self.vars.db_password}@{self.vars.db_host}"
@@ -54,15 +44,28 @@ class Config:
         engine_url = str(engine.url)
 
                 
-        if engine_url.find(dbname) == -1:
-            session, engine = self.create_db_connection( engine, session, connection_string)
+        #if engine_url.find(dbname) == -1:
+        #    print(engine_url.find(dbname))
+        #    session, engine = self.create_db_connection( engine, session, connection_string)
+        with engine.connect() as connection:
+            result = connection.execute(text(f"SHOW DATABASES LIKE '{dbname}'"))
+            db_exists = result.fetchone() is not None
+        if not db_exists:
+            print(f"Banco de dados '{dbname}' não encontrado. Criando o banco de dados...")
+            session, engine = self.create_db_connection(engine, session, connection_string)
+        else:
+            print(f"Banco de dados '{dbname}' encontrado.")
+            connection_string = f"mysql+pymysql://{self.vars.db_user}:{self.vars.db_password}@{self.vars.db_host}/{dbname}"
+            engine = create_engine(connection_string)
+            session = sessionmaker(bind=engine)()
 
+        
         self.db_conn_mysql = session
         self.engine_conn_mysql = engine
 
     def _load_yaml(self, filename):
         """Load YAML file"""
-        with open(join(dirname(abspath(__file__)), filename), encoding='utf-8') as file:
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), filename), encoding='utf-8') as file:
             return load(file, Loader=SafeLoader)
 
     def create_db_connection(self, engine, session, connection_string):
@@ -88,12 +91,12 @@ class Config:
             automap = automap_base()
             automap.prepare(engine, reflect=True)
             self.automap = automap
-
             # Armazenar conexões
             self.db_conn_mysql = session
             self.engine_conn_mysql = engine
 
             print(f"Conectado com sucesso ao banco de dados '{self.vars.database}'")
+
             return session, engine
         except OperationalError as e:
             print(f"Erro ao conectar ao banco de dados '{self.vars.database}': {e}")
