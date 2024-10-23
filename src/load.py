@@ -21,6 +21,7 @@ class Load:
                     with self.connection.begin() as transaction:
                         # Verifica se o registro já existe
                         existing = self.connection.query(model_class).filter_by(**row.to_dict()).first()
+                        
                         if existing is None:
                             obj = model_class(**row.to_dict())
                             self.connection.add(obj)

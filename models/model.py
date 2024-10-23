@@ -108,6 +108,7 @@ class Model:
     class Aluno(Base):
         __tablename__ = 'aluno'
         cod_aluno = Column(Integer, primary_key=True, autoincrement=True)
+        ano_processo_seletivo = Column(Integer)
         cod_mundv_aluno = Column(Integer, ForeignKey('municipio.cod_mundv'))
         cod_tipo_bolsa = Column(Integer, ForeignKey('bolsa.cod_tipo_bolsa'))
         cod_curso = Column(Integer, ForeignKey('curso.cod_curso'))
