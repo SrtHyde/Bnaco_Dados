@@ -59,7 +59,7 @@ class Transform:
             data['municipio_ies'] = 'Sem informação'
 
         map_columns = {
-            'ANO_CONCESSAO_BOLSA': 'ANO', 'DT_NASCIMENTO_BENEFICIARIO': 'DATA_NASCIMENTO',
+            'ANO_CONCESSAO_BOLSA': 'ANO_PROCESSO_SELETIVO', 'ANO':'ANO_PROCESSO_SELETIVO', 'DT_NASCIMENTO_BENEFICIARIO': 'DATA_NASCIMENTO',
             'SIGLA_UF_BENEFICIARIO_BOLSA': 'SG_UF', 'UF_BENEFICIARIO': 'SG_UF' ,'CPF_BENEFICIARIO_BOLSA': 'CPF', 'RACA_BENEFICIARIO_BOLSA': 'RACA',
             'REGIAO_BENEFICIARIO_BOLSA': 'REGIAO', 'SEXO_BENEFICIARIO_BOLSA': 'SEXO',  "MUNICIPIO_BENEFICIARIO": "MUNICIPIO_ALUNO",
             'MUNICIPIO_BENEFICIARIO_BOLSA': 'MUNICIPIO_ALUNO', 'MODALIDADE_ENSINO_BOLSA': 'MODALIDADE',
@@ -80,7 +80,7 @@ class Transform:
         data.columns = [sub(r'[^\w_]', '', coluna).replace(' ', '_').lower() for coluna in data.columns]
         
         data = data.apply(lambda x: x.str.title() if x.dtype == 'object' else x).assign(
-            ano=lambda x: x.ano.astype(int),
+            ano_processo_seletivo=lambda x: x.ano_processo_seletivo.astype(int),
             tipo_bolsa=lambda x: x.tipo_bolsa.replace({'Bolsa Parcial 50%': 'Parcial', 'Bolsa Integral': 'Integral', 'Bolsa Parcial 25%': 'Parcial'}),
             modalidade=lambda x: x.modalidade.replace({'Educação A Distância': 'EAD'}),
             sexo=lambda x: x.sexo.replace({'Feminino': 'F', 'Masculino': 'M'}),
@@ -322,7 +322,7 @@ class Transform:
         curso =self.merged_data[['cod_curso', 'nome_curso', 'cod_turno', 'cod_modalidade', 'cod_ies']].drop_duplicates()
         modalidade = self.merged_data[['cod_modalidade', 'modalidade']].drop_duplicates()
         bolsa = self.merged_data[['cod_tipo_bolsa', 'tipo_bolsa']].drop_duplicates()
-        aluno = self.merged_data[['cod_aluno', 'cod_mundv_aluno', 'cod_tipo_bolsa', 'cod_curso',
+        aluno = self.merged_data[['cod_aluno', 'ano_processo_seletivo','cod_mundv_aluno', 'cod_tipo_bolsa', 'cod_curso',
                                                             'cod_campus', 'cpf', 'sexo', 'raca', 'data_nascimento', 
                                                             'deficiente_fisico']].drop_duplicates()
         
