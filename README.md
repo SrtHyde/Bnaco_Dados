@@ -20,4 +20,4 @@ Os dados transformados são carregados em um banco de dados MySQL. A modelagem d
 O banco de dados foi modelado para armazenar eficientemente os dados do ProUni, proporcionando uma estrutura robusta para consultas e análises futuras.
 O modelo criado pode ser vizualizado na imagem a seguir:
 
-![Diagrama Lógico do banco de dados](images\Diagrama_ER_PROUNI.png)
+![Diagrama Lógico do banco de dados](images/Diagrama_ER_PROUNI.png)
